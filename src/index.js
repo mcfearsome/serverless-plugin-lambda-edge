@@ -4,23 +4,37 @@ const { AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION } = process
 class UpdateLambdaFunctionAssociationPlugin {
   constructor(serverless, options) {
     this.serverless = serverless
+
+    const newCustomPropSchema = {
+      type: 'object',
+      properties: {
+        cloudFrontId: { type: 'string' },
+        cacheBehaviors: { type: 'array', items: {type: 'string'}},
+      },
+      required: ['cloudFrontId'],
+    };
+    
+    serverless.configSchemaHandler.defineCustomProperties(newCustomPropSchema);
+
+    const newFunctionPropSchema = {
+      properties: {
+        eventType: { enum: ['viewer-request', 'origin-request', 'origin-response', 'viewer-response'] },
+      },
+      required: ['eventType'],
+    }
+
+    serverless.configSchemaHandler.defineFunctionProperties('aws', newFunctionPropSchema)
+
     this.provider = serverless.getProvider('aws')
     this.hooks = {
       'after:deploy:deploy': this.updateLambdaFunctionAssociations.bind(this)
     }
     this.custom = this.serverless.service.custom
     this.functions = this.serverless.service.functions
-
-    if (!this.custom.cloudFrontId) {
-      throw new this.serverless.classes.Error("LambdaEdge: 'custom.cloudFrontId' is requied. You must specify it.")
-    }
-    if (!Object.values(this.functions).every((func) => func.hasOwnProperty('eventType'))) {
-      throw new this.serverless.classes.Error("LambdaEdge: 'functions.eventType' is requied. You must specify it.")
-    }
   }
 
-  updateLambdaFunctionAssociations() {
-    Promise.all([
+  async updateLambdaFunctionAssociations() {
+    await Promise.all([
       this.getCloudFrontConfig(),
       this.getUpdatedLambdaAssociationConfig()
     ]).then(async ([cloudFrontConfig, lambdaAssociationConfig]) => {
@@ -28,7 +42,17 @@ class UpdateLambdaFunctionAssociationPlugin {
 
       cloudFrontConfig['Id'] = this.custom.cloudFrontId
       cloudFrontConfig['IfMatch'] = cloudFrontConfig['ETag']
-      cloudFrontConfig['DistributionConfig']['DefaultCacheBehavior']['LambdaFunctionAssociations'] = lambdaAssociationConfig
+
+      if (!this.custom.cacheBehaviors || this.custom.cacheBehaviors.includes('default')) {
+        cloudFrontConfig['DistributionConfig']['DefaultCacheBehavior']['LambdaFunctionAssociations'] = lambdaAssociationConfig
+      }
+
+      cloudFrontConfig['DistributionConfig']['CacheBehaviors']['Items'] = cloudFrontConfig['DistributionConfig']['CacheBehaviors']['Items'].map(item => {
+        if ((this.custom.cacheBehaviors.includes(item['PathPattern']))) {
+          item['LambdaFunctionAssociations'] = lambdaAssociationConfig
+        }
+        return item
+      })
 
       // "CloudFront.updateDistribution" method's param doesn't need ETag
       delete cloudFrontConfig['ETag']

@@ -1,13 +1,13 @@
 {
-  "name": "serverless-plugin-lambda-edge",
+  "name": "mc-serverless-plugin-lambda-edge",
   "version": "2.0.3",
   "description": "serverless plugin for Lambda@Edge with aws-sdk",
   "main": "src/index.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/isudzumi/serverless-plugin-lambda-edge.git"
+    "url": "https://github.com/mcfearsome/serverless-plugin-lambda-edge.git"
   },
-  "homepage": "https://github.com/isudzumi/serverless-plugin-lambda-edge",
+  "homepage": "https://github.com/mcfearsome/serverless-plugin-lambda-edge",
   "keywords": [
     "serverless",
     "serverless plugin",
@@ -20,7 +20,8 @@
     "aws-sdk": "^2.538.0"
   },
   "devDependencies": {
-    "jest": "^24.9.0"
+    "jest": "^24.9.0",
+    "serverless": "^2.49.0"
   },
   "scripts": {
     "test": "jest"
