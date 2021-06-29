@@ -8,10 +8,16 @@ class UpdateLambdaFunctionAssociationPlugin {
     const newCustomPropSchema = {
       type: 'object',
       properties: {
-        cloudFrontId: { type: 'string' },
-        cacheBehaviors: { type: 'array', items: {type: 'string'}},
+        workareaEdge: {
+          type: 'object',
+          properties: {
+            cloudFrontId: { type: 'string' },
+            cacheBehaviors: { type: 'array', items: {type: 'string'}},
+          },
+          required: ['cloudFrontId'],
+        },
       },
-      required: ['cloudFrontId'],
+      required: ['workareaEdge'],
     };
     
     serverless.configSchemaHandler.defineCustomProperties(newCustomPropSchema);
@@ -29,7 +35,7 @@ class UpdateLambdaFunctionAssociationPlugin {
     this.hooks = {
       'after:deploy:deploy': this.updateLambdaFunctionAssociations.bind(this)
     }
-    this.custom = this.serverless.service.custom
+    this.custom = this.serverless.service.custom.workareaEdge
     this.functions = this.serverless.service.functions
   }
 

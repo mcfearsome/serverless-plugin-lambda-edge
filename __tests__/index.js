@@ -4,8 +4,10 @@ class StubService {
   constructor(provider) {
     this.provider = provider
     this.custom = {
-      cloudFrontId: 'XXXX',
-      cacheBehaviors: ['default','/categories/*']
+      workareaEdge: {
+        cloudFrontId: 'XXXX',
+        cacheBehaviors: ['default','/categories/*']
+      }
     }
     this.functions = {
       functionName1: {
@@ -50,6 +52,7 @@ const emptyAwsArray = {
   "Quantity": 0,
   "Items": []
 }
+
 const cloudFrontDistributionConfigRequest = (id) => ({
   "DistributionConfig": {
     "CallerReference": "1601315603257",
@@ -72,22 +75,20 @@ const cloudFrontDistributionConfigRequest = (id) => ({
   }
 });
 
-const isLambdaListVersionsByFunction = (service, method, params, options) => {
-  return service.toLowerCase() === 'lambda' &&
-    method === 'listVersionsByFunction' &&
-    'FunctionName' in params
+const awsProviderRequestMatcher = (serviceName, methodName, key) => {
+  return (service, method, params, options) => {
+    const paramCondition = (key !== null) ? (key in params) : true
+    return service.toLowerCase() === serviceName.toLowerCase() &&
+      method.toLowerCase() === methodName.toLowerCase() &&
+      paramCondition
+  }
 }
 
-const isCloudFrontDistributionConfigRequest = (service, method, params, options) => {
-  return service.toLowerCase() === 'cloudfront' &&
-    method === 'getDistributionConfig' &&
-    'Id' in params
-}
+const isLambdaListVersionsByFunction = awsProviderRequestMatcher('lambda', 'listVersionsByFunction', 'FunctionName')
 
-const isCloudFrontUdateDistributionRequest = (service, method, params, options) => {
-  return service.toLowerCase() === 'cloudfront' &&
-    method === 'updateDistribution'
-}
+const isCloudFrontDistributionConfigRequest = awsProviderRequestMatcher('cloudfront', 'getDistributionConfig', 'Id')
+
+const isCloudFrontUdateDistributionRequest = awsProviderRequestMatcher('cloudfront', 'updateDistribution', null)
 
 class StubProvider {
   constructor() {
@@ -117,7 +118,7 @@ class StubServerless {
     this.configSchemaHandler = s.configSchemaHandler;
     this.cli = {
       log: function(msg) {
-        console.log(msg)
+        // noop
       }
     }
   }
@@ -125,27 +126,25 @@ class StubServerless {
   getProvider(_) {
     return this.provider
   }
-
-  getDistributionConfig(_) {
-    return this.provider.distributionConfig;
-  }
 }
+
+const lambdaConfig = [
+  {
+    EventType: 'viewer-request',
+    LambdaFunctionARN: 'arn:aws:lambda:us-east-1:000:function:function-name-1:3',
+    IncludeBody: false
+  },
+  {
+    EventType: 'origin-request',
+    LambdaFunctionARN: 'arn:aws:lambda:us-east-1:000:function:function-name-2:3',
+    IncludeBody: false
+  }
+]
 
 describe('update lambda function association plugin', () => {
   const stubServerless = new StubServerless()
   const plugin = new UpdateLambdaFunctionAssociationPlugin(stubServerless, {})
-  const lambdaConfig = [
-    {
-      EventType: 'viewer-request',
-      LambdaFunctionARN: 'arn:aws:lambda:us-east-1:000:function:function-name-1:3',
-      IncludeBody: false
-    },
-    {
-      EventType: 'origin-request',
-      LambdaFunctionARN: 'arn:aws:lambda:us-east-1:000:function:function-name-2:3',
-      IncludeBody: false
-    }
-  ]
+  
   it('should contain cloudFrontId', () => {
     expect(plugin.custom).toMatchObject({ cloudFrontId: 'XXXX' })
   })
@@ -165,14 +164,13 @@ describe('update lambda function association plugin', () => {
 
   it('updates the distribution config correctly', async () => {
     await plugin.updateLambdaFunctionAssociations.bind(plugin)()
-    const config = stubServerless.getDistributionConfig().DistributionConfig
+    const config = stubServerless.getProvider().distributionConfig.DistributionConfig
     expect(config.DefaultCacheBehavior.LambdaFunctionAssociations.Items).toMatchObject(lambdaConfig)
     expect(config.CacheBehaviors.Items[0].LambdaFunctionAssociations.Items).toMatchObject(lambdaConfig)
     expect(config.CacheBehaviors.Items[1].LambdaFunctionAssociations).toMatchObject(emptyAwsArray)
   })
 
   test('getUpdatedLambdaAssociationConfigs', async () => {
-
     const lambdaAssociationConfigItem = await plugin.getUpdatedLambdaAssociationConfigItems()
     expect(lambdaAssociationConfigItem).toMatchObject(lambdaConfig)
   })
